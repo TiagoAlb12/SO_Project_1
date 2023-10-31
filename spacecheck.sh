@@ -1,7 +1,3 @@
-
-
-
-
 #!/bin/bash
 
 # Função que mostra o uso correto do script
