@@ -1,46 +1,46 @@
 #!/bin/bash
 
-# Função que mostra o uso correto do script
-function erro() {
-  echo "ERRO! Opcao invalida. Tente novamente!"
+#Mensagem de erro caso use uma opçao que nao esta considerada
+function erro {
+  echo "ERRO! Opção inválida. Tente novamente!"
   exit 1
 }
 
-# Variáveis com as opções default
-regex=".*"  # Inicialmente, a expressão regular está vazia
+#Variaveis com as opçoes default
+regex=".*"  #A expressão regular começa vazia (abrange todos os ficheiros)
 data="0"  #-d
-sizeM="0" #Tamanho minimo estipulado com default
-sort_option="-k1,1nr"  # Inicialmente, ordenação do maior para o menor (em termos do armazenamento)
+size_min="0" #Tamanho minimo estipulado como default
+sort_option="-k1,1nr"  #Inicialmente, a ordenaçao e feita do maior para o menor (em termos de armazenamento)
 limit_lines="0" #Inicializar com zero
 
-# Todos os argumentos que passo na linha de comandos
-argumentos="$@"
+#Todos os argumentos que passamos na linha de comandos
+all_args="$@"
 
-# Retirar os argumentos que não correspondem a diretórios
-direct_args=()   # array para armazenar os argumentos que correspondem a diretórios
-for arg in "$@"; do   # Itera sobre todos os argumentos passados  
-  if [ -d "$arg" ]; then  # Verificar se é um diretório válido
-    direct_args+=("$arg")  # Se for um diretório válido, o argumento é adicionado ao array direct_args
+#Filtrar os argumentos que correspondem a diretórios
+correct_dir=()   #Array para armazenar os argumentos que correspondem a diretorios
+for arg in "$@"; do   #Iterar sobre todos os argumentos passados  
+  if [ -d "$arg" ]; then  #Verificar se e um diretorio valido
+    correct_dir+=("$arg")  #Se for um diretorio valido, o argumento e adicionado ao array correct_dir
   fi
 done
 
-# Avaliar todas as opções que passamos na linha de comando
-reverse_sort="false"  # Variável para controlar a ordenação reversa
+#Todas as opçoes que podemos passar na linha de comando
+reverse_sort="false"  #Variavel que criei para controlar o reverse (-r)
 while getopts ":n:d:s:l:ra" option; do
   case "$option" in
     n) 
       regex="$OPTARG" ;;
     d) 
-      #Verificar o formato da data que passamos como Verifica se a data tem o formato correto (Mês Dia Hora:Minuto)
-      if date -d "$OPTARG" >/dev/null 2>&1; then  #Ex: "Sep 10 10:00"
+      #Verificar se o formato da data que passamos como argumento tem o formato correto (Ex: "Sep 10 10:00")
+      if date -d "$OPTARG" >/dev/null 2>&1; then
         data="$OPTARG"
       else
-        echo "ERRO: Formato de data incorreto."
+        echo "ERRO: Formato incorreto da data."
         exit 1
       fi
       ;;
     s) 
-      sizeM="$OPTARG" ;;
+      size_min="$OPTARG" ;;
     r) 
       sort_option="-k1,1n" 
       reverse_sort="true" ;;
@@ -48,55 +48,79 @@ while getopts ":n:d:s:l:ra" option; do
       sort_option="-k2,2" ;;
     l) 
       limit_lines="$OPTARG" ;;
-    ?) #Caso insira uma opção inválida
+    ?) 
       erro ;;
   esac
 done
 
-#NOTA: usei este if na funçao abaixo porque perdia um diretorio quando nao usava o -d mas tinha '-not -newermt "$data"' no find
-# Função para listar diretórios que contêm arquivos que correspondem à expressão regular que escolhermos
+#Funçao que lista os diretorios que contem arquivos que correspondem as expressoes regulares que escolhermos
 function diretoriosPretendidos {
-  if [ "$data" != "0" ]; then   #opçao default que tenho para a data
-    #Se a opção -d foi fornecida, use o -not -newermt para filtrar consoante data de modificação, conforme é pedido
-    find "$1" -type f -regex "$regex" -not -newermt "$data" -exec dirname {} \; | sort -u #->poderia usar tambem o -grep
+  #$1" -> diretorio
+  if [ "$data" != "0" ]; then   #Opçao default que tenho para a data (data="0")
+    #Se a opçao -d foi fornecida, usamos o -not -newermt para filtrar consoante a data de modificaçao do arquivo, conforme e pedido
+    find "$1" -type f -not -newermt "$data" -exec dirname {} \; | sort -u   # -> poderia usar tambem o -grep
   else
-    #Se a opção -d não foi fornecida, não a podemos considerar para nao perdermos diretorios
-    find "$1" -type f -regex "$regex" -exec dirname {} \; | sort -u
+    #Se a opçao -d nao foi fornecida, nao a podemos considerar para nao perdermos diretórios
+    find "$1" -type f -exec dirname {} \; | sort -u
   fi
 }
 
-# Função para calcular o espaço ocupado por diretórios em bytes
-function calcularEspacoDiretorios {
+#Funçao para calcular o espaço ocupado por ficheiro do tipo da expressao regular que passo como argumento (em bytes)
+function calcularEspacoArquivos {
   local counter=0
-  while read -r dir; do
-    du_result=$(du -s "$dir") 
-    size=$(echo "$du_result" | awk '{print $1}')
 
-    # Verificar se o tamanho do diretório, calculado acima, é maior que o passado como argumento
-    if [ "$size" -ge "$sizeM" ]; then   #Caso nao use a opçao -s com os argumentos, o sizeM é zero
-      echo -e "$size\t$dir"
-      counter=$((counter+1))  # Incrementar o contador
-    else
-      echo -e "0\t$dir"
+  #Iterar pelos diretorios obtidos da funçao diretoriosPretendidos
+  diretoriosPretendidos "$1" | while read -r sub_dir; do
+    #Quando mudo de diretorio, defino a variavel total_size em zero
+    total_size=0
+    has_files=false  #Usar para verificar se o subdiretorio contem arquivos que correspondem a expressao regular
+
+    #Iterar pelos arquivos no subdiretorio que correspondem a expressao regular
+    for file in "$sub_dir"/*; do
+      if [ -f "$file" ] && [[ "$file" =~ $regex ]]; then    #Verificar se e um arquivo valido e se corresponde a expressao regular
+        du_result=$(du -b "$file")  #Usar du -b para obter o tamanho em bytes
+        file_size=$(echo "$du_result" | awk '{print $1}')
+        total_size=$((total_size + file_size))  #Adicionar o tamanho do arquivo ao total_size
+        has_files=true
+      fi
+    done
+
+    #Verificar se o subdiretorio contem arquivos que correspondem a expressao regular
+    if [ "$has_files" = false ]; then
+      total_size=0
+    fi
+
+    #Verificar se o diretorio pode ser acessado (por motivos de permissao, por exemplo)
+    if [ -x "$sub_dir" ]; then
+      #Se o tamanho total for maior ou igual a size_min, imprimo o tamanho total
+      if [ "$total_size" -ge "$size_min" ]; then
+        echo -e "$total_size\t$sub_dir"
+        counter=$((counter+1))
+      else
+        echo -e "0\t$sub_dir"
+      fi
+      
+    else    #Caso o diretorio nao possa ser acessado
+      echo -e "NA\t$sub_dir"
     fi
 
     if [ "$limit_lines" -gt 0 ] && [ "$counter" -ge "$limit_lines" ]; then
-      break  # Se o contador atingir o limite, sair do loop
+      break  #Se o contador atingir o limite, sair do loop
     fi
   done
 }
 
-# Loop pelos diretórios válidos contidos no array direct_args
-for dir in "${direct_args[@]}"; do
+#Loop pelos diretorios validos contidos no array correct_dir
+for dir in "${correct_dir[@]}"; do
   echo -e "\nEstamos no diretório -> $dir\n"
-  echo -e "SIZE\tNAME\t$(date +%Y%m%d)    $argumentos" # Cabeçalho
+  echo -e "SIZE\tNAME\t$(date +%Y%m%d)    $all_args" #Cabeçalho
 
   #Para controlar quando usamos o -r -a -n; se usarmos o -r:"$reverse_sort" == "true" e se usarmos o -a:"$sort_option" == "-k2,2"
   if [ "$reverse_sort" == "true" ] && [ "$sort_option" == "-k2,2" ]; then
-    # Se a opção -r foi usada em conjunto com -a -n, reverta a ordem de classificação
-    diretoriosPretendidos "$dir" | calcularEspacoDiretorios | sort -t$'\t' $sort_option -r
-  else  #caso contrario, ou seja, quando nao usamos o -r -a -n
-    diretoriosPretendidos "$dir" | calcularEspacoDiretorios | sort -t$'\t' $sort_option
+    #Se a opção -r foi usada em conjunto com -a -n, reverta a ordem de classificaçao
+    calcularEspacoArquivos "$dir" | sort -t$'\t' $sort_option -r
+  else  #Caso contrario, ou seja, quando nao usamos o -r -a -n
+    calcularEspacoArquivos "$dir" | sort -t$'\t' $sort_option
   fi
   echo "======"
 done
