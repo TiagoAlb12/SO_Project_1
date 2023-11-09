@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Mensagem de erro caso use uma opçao que nao esta considerada
+#Mensagem de erro caso usemos uma opçao que nao esta considerada no getops
 function erro {
   echo "ERRO! Opção inválida. Tente novamente!"
   exit 1
@@ -16,26 +16,25 @@ limit_lines="0" #Inicializar com zero
 #Todos os argumentos que passamos na linha de comandos
 all_args="$@"
 
-#Filtrar os argumentos que correspondem a diretórios
-correct_dir=()   #Array para armazenar os argumentos que correspondem a diretorios
-for arg in "$@"; do   #Iterar sobre todos os argumentos passados  
-  if [ -d "$arg" ]; then  #Verificar se e um diretorio valido
-    correct_dir+=("$arg")  #Se for um diretorio valido, o argumento e adicionado ao array correct_dir
+# Filtrar os argumentos que correspondem a diretórios
+correct_dir=()   # Array para armazenar os argumentos que correspondem a diretorios
+for arg in "$@"; do   # Iterar sobre todos os argumentos passados  
+  if [ -d "$arg" ]; then  # Verificar se é um diretório válido
+    correct_dir+=("$arg")  # Se for um diretório válido, o argumento é adicionado ao array correct_dir
   fi
 done
 
-#Todas as opçoes que podemos passar na linha de comando
+#Analise de todas opçoes que podemos passar na linha de comando
 reverse_sort="false"  #Variavel que criei para controlar o reverse (-r)
 while getopts ":n:d:s:l:ra" option; do
   case "$option" in
     n) 
       regex="$OPTARG" ;;
-    d) 
-      #Verificar se o formato da data que passamos como argumento tem o formato correto (Ex: "Sep 10 10:00")
-      if date -d "$OPTARG" >/dev/null 2>&1; then
+    d) #Verificar se o formato da data que passamos como argumento tem o formato correto (Ex: "Sep 10 10:00")
+      if [[ "$OPTARG" =~ ^[A-Z][a-z]{2}\ [0-9]{1,2}\ [0-9]{2}:[0-9]{2}$ ]]; then
         data="$OPTARG"
       else
-        echo "ERRO: Formato incorreto da data."
+        echo "ERRO: Formato incorreto da data. Exemplo: 'Sep 10 10:00'."
         exit 1
       fi
       ;;
@@ -46,8 +45,14 @@ while getopts ":n:d:s:l:ra" option; do
       reverse_sort="true" ;;
     a) 
       sort_option="-k2,2" ;;
-    l) 
-      limit_lines="$OPTARG" ;;
+    l) #Validar o argumento da opçao -l, se e um numero inteiro positivo
+      if [[ "$OPTARG" =~ ^[1-9][0-9]*$ ]]; then
+        limit_lines="$OPTARG"
+      else
+        echo "ERRO: O argumento da opção -l deve ser um número inteiro positivo."
+        exit 1
+      fi
+      ;;
     ?) 
       erro ;;
   esac
@@ -55,10 +60,9 @@ done
 
 #Funçao que lista os diretorios que contem arquivos que correspondem as expressoes regulares que escolhermos
 function diretoriosPretendidos {
-  #$1" -> diretorio
   if [ "$data" != "0" ]; then   #Opçao default que tenho para a data (data="0")
     #Se a opçao -d foi fornecida, usamos o -not -newermt para filtrar consoante a data de modificaçao do arquivo, conforme e pedido
-    find "$1" -type f -not -newermt "$data" -exec dirname {} \; | sort -u   # -> poderia usar tambem o -grep
+    find "$1" -type f -not -newermt "$data" -exec dirname {} \; | sort -u
   else
     #Se a opçao -d nao foi fornecida, nao a podemos considerar para nao perdermos diretórios
     find "$1" -type f -exec dirname {} \; | sort -u
@@ -78,7 +82,7 @@ function calcularEspacoArquivos {
     #Iterar pelos arquivos no subdiretorio que correspondem a expressao regular
     for file in "$sub_dir"/*; do
       if [ -f "$file" ] && [[ "$file" =~ $regex ]]; then    #Verificar se e um arquivo valido e se corresponde a expressao regular
-        du_result=$(du -b "$file")  #Usar du -b para obter o tamanho em bytes
+        du_result=$(du -b "$file")  #du -b para obter o tamanho em bytes
         file_size=$(echo "$du_result" | awk '{print $1}')
         total_size=$((total_size + file_size))  #Adicionar o tamanho do arquivo ao total_size
         has_files=true
@@ -90,18 +94,17 @@ function calcularEspacoArquivos {
       total_size=0
     fi
 
-    #Verificar se o diretorio pode ser acessado (por motivos de permissao, por exemplo)
-    if [ -x "$sub_dir" ]; then
-      #Se o tamanho total for maior ou igual a size_min, imprimo o tamanho total
-      if [ "$total_size" -ge "$size_min" ]; then
+    #Caso o diretorio nao possa ser acessado
+    if [ "$?" -ne 0 ]; then
+      echo -e "NA\t$sub_dir"fi
+    fi
+    
+    #Se o tamanho total for maior ou igual a size_min, imprimo o tamanho total
+    if [ "$total_size" -ge "$size_min" ]; then
         echo -e "$total_size\t$sub_dir"
         counter=$((counter+1))
-      else
-        echo -e "0\t$sub_dir"
-      fi
-      
-    else    #Caso o diretorio nao possa ser acessado
-      echo -e "NA\t$sub_dir"
+    else
+      echo -e "0\t$sub_dir"
     fi
 
     if [ "$limit_lines" -gt 0 ] && [ "$counter" -ge "$limit_lines" ]; then
