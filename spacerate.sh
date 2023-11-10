@@ -17,8 +17,8 @@ if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
 fi
 
 # Ler o conteúdo dos arquivos, ignorando as linhas em branco e a primeira linha, e armazenar em arrays
-mapfile -t file1_array < <(grep -v '^$' "$file1" | tail -n +4)
-mapfile -t file2_array < <(grep -v '^$' "$file2" | tail -n +4)
+mapfile -t file1_array < <(grep -v '^$' "$file1" | tail -n +3)
+mapfile -t file2_array < <(grep -v '^$' "$file2" | tail -n +3)
 
 declare -A size_mapping
 
@@ -37,15 +37,15 @@ for line in "${!size_mapping[@]}"; do
 
     # Se não há correspondência no primeiro arquivo, então é uma adição
     if [ -z "$size1" ]; then
-        echo "0 $line NEW"
+        echo -e "0\t$line\tNEW"
     # Se não há correspondência no segundo arquivo, então é uma remoção
     elif [ -z "$size2" ]; then
-        echo "0 $line REMOVED"
+        echo -e "0\t$line\tREMOVED"
     else
         # Calcular a diferença real de tamanhos
         size_diff=$((size2 - size1))
 
         # Imprimir a diferença real de tamanho
-        echo "$size_diff $line"
+        echo -e "$size_diff\t$line"
     fi
 done
