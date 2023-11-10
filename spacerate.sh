@@ -16,48 +16,36 @@ if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
     exit 1
 fi
 
-# Imprimir o cabeçalho
-echo "SIZE NAME"
-
-# Ler o conteúdo dos arquivos, ignorando a primeira linha, e armazenar em arrays
-mapfile -t file1_array < <(tail -n +2 "$file1")
-mapfile -t file2_array < <(tail -n +2 "$file2")
+# Ler o conteúdo dos arquivos, ignorando as linhas em branco e a primeira linha, e armazenar em arrays
+mapfile -t file1_array < <(grep -v '^$' "$file1" | tail -n +4)
+mapfile -t file2_array < <(grep -v '^$' "$file2" | tail -n +4)
 
 declare -A size_mapping
 
 # Criar um mapeamento do tamanho do arquivo para o seu nome
 for line in "${file1_array[@]}" "${file2_array[@]}"; do
     size=$(echo "$line" | awk '{print $1}')
-    filename=$(echo "$line" | awk '{$1=""; print $0}')
-    size_mapping["$filename"]="$size"
+    filename=$(echo "$line" | cut -f2- -d$'\t')
+    size_mapping["$filename"]+="$size "
 done
 
 # Comparar os arrays e imprimir conforme o formato desejado
 for line in "${!size_mapping[@]}"; do
-    if [[ -z ${size_mapping[$line]} ]]; then
-        # Verifica se o diretório não existe no segundo arquivo, então é uma remoção ou está corrompido
-        if [ ! -e "$line" ]; then
-            echo "0 $line REMOVED"
-        else
-            echo "0 $line"
-        fi
-    elif [[ -z ${size_mapping[$line]} ]]; then
-        # Se não há correspondência no primeiro arquivo, então é uma adição
-        if [ ! -e "$line" ]; then
-            echo "0 $line NEW"
-        fi
-    else
-        # Se houver correspondência em ambos os arquivos, verificar a diferença de tamanho
-        size1=${size_mapping[$line]}
-        size2=${size_mapping[$line]}
+    sizes=(${size_mapping["$line"]})
+    size1="${sizes[0]}"
+    size2="${sizes[1]}"
 
+    # Se não há correspondência no primeiro arquivo, então é uma adição
+    if [ -z "$size1" ]; then
+        echo "0 $line NEW"
+    # Se não há correspondência no segundo arquivo, então é uma remoção
+    elif [ -z "$size2" ]; then
+        echo "0 $line REMOVED"
+    else
+        # Calcular a diferença real de tamanhos
         size_diff=$((size2 - size1))
-        
-        # Imprimir de acordo com o tamanho para identificar alterações ou arquivos inalterados
-        if [ "$size_diff" -eq 0 ]; then
-            echo "$size1 $line"
-        else
-            echo "$size_diff $line"
-        fi
+
+        # Imprimir a diferença real de tamanho
+        echo "$size_diff $line"
     fi
 done
