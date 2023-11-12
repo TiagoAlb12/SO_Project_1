@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#Criar variaveis para definir as opcoes default
+#opções padrão por causa do -a e do -r
 reverse=false
 alphabetical=false
 
-#Analise de todas opcoes que podemos passar na linha de comando (opcoes de ordenacao)
+#opções na linha do comando
 while getopts ":ra" option; do
   case "${option}" in
     r)
@@ -18,58 +18,58 @@ while getopts ":ra" option; do
       exit 1
       ;;
     :)
-      echo "A opção -$OPTARG requer um argumento." >&2
+      echo "A opção -$OPTARG requer um argumento" >&2
       exit 1
       ;;
   esac
 done
 shift $((OPTIND-1))
 
-#Verificar se passamos dois ficheiros nos argumentos
+#verificação se são passados dois arquivos para comparar
 if [ "$#" -ne 2 ]; then
-    echo "Por favor, forneça dois ficheiros para comparar."
+    echo "Por favor forneça dois arquivos para comparar"
     exit 1
 fi
 
-file1="$1"
-file2="$2"
+file1="$1" #isto é o ficheiro 1
+file2="$2" #isto é o ficheiro 2
 
-#Verificar se os ficheiros passados existem
+#verificação se os arquivos existem
 if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
-    echo "Os ficheiros especificados não existem."
+    echo "Os arquivos não existem"
     exit 1
 fi
 
-#Ler o conteudo dos ficheiros e armazenar em arrays
+#ler o conteudo dos ficheiros e armazenar em arrays
 mapfile -t file1_array < <(grep -v '^$' "$file1" | tail -n +3)
 mapfile -t file2_array < <(grep -v '^$' "$file2" | tail -n +3)
 
 declare -A size_mapping
 
-#Iterar sobre as linhas dos arrays file1_array e file2_array
+#mapeamento do tamanho do arquivo para o seu nome
 for line in "${file1_array[@]}" "${file2_array[@]}"; do
     size=$(echo "$line" | awk '{print $1}')
     filename=$(echo "$line" | cut -f2- -d$'\t')
     size_mapping["$filename"]+="$size "
 done
 
-#Comparar os arrays
+#comparar os arrays e imprimir 
 for line in "${!size_mapping[@]}"; do
     sizes=(${size_mapping["$line"]})
     size1="${sizes[0]}"
     size2="${sizes[1]}"
 
-    #Calcular a diferenca de tamanhos (entre os diferentes ficheiros)
+    #diferença real de tamanhos
     size_diff=$((size2 - size1))
 
-    #Se nao temos correspondencia no primeiro arquivo, entao ha uma adicao de um diretorio
+    #não havendo correspondência no primeiro arquivo ha uma adição do ficheiro
     if [ -z "$size1" ]; then
         echo -e "$size_diff\t$line\tNEW"
-    #Se nao temos correspondencia no segundo arquivo, entao ha uma remocao de um diretorio
+    #não havendo correspondência no segundo arquivo ha uma remoção do ficheiro
     elif [ -z "$size2" ]; then
         echo -e "$size_diff\t$line\tREMOVED"
     else
-        #Imprimir a diferenca dos tamanhos
+        #imprimir a diferença dos tamanhos
         echo -e "$size_diff\t$line"
     fi
 done | (sort -k1,1nr) | ($alphabetical && sort -k2 || cat) | ($reverse && tac || cat)
