@@ -59,16 +59,16 @@ for line in "${!size_mapping[@]}"; do
     size1="${sizes[0]}"
     size2="${sizes[1]}"
 
+    # Calcular a diferença real de tamanhos
+    size_diff=$((size2 - size1))
+
     # Se não há correspondência no primeiro arquivo, então é uma adição
     if [ -z "$size1" ]; then
-        echo -e "0\t$line\tNEW"
+        echo -e "$size_diff\t$line\tNEW"
     # Se não há correspondência no segundo arquivo, então é uma remoção
     elif [ -z "$size2" ]; then
-        echo -e "0\t$line\tREMOVED"
+        echo -e "$size_diff\t$line\tREMOVED"
     else
-        # Calcular a diferença real de tamanhos
-        size_diff=$((size2 - size1))
-
         # Imprimir a diferença real de tamanho
         echo -e "$size_diff\t$line"
     fi
