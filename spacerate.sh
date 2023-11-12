@@ -1,12 +1,36 @@
 #!/bin/bash
 
+# Definir as opções padrão
+reverse=false
+alphabetical=false
+
+# Processar as opções de linha de comando
+while getopts ":ra" option; do
+  case "${option}" in
+    r)
+      reverse=true
+      ;;
+    a)
+      alphabetical=true
+      ;;
+    \?)
+      echo "Opção inválida: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "A opção -$OPTARG requer um argumento." >&2
+      exit 1
+      ;;
+  esac
+done
+shift $((OPTIND-1))
+
 # Verificar se são passados dois arquivos como argumentos
 if [ "$#" -ne 2 ]; then
     echo "Por favor, forneça dois arquivos para comparar."
     exit 1
 fi
 
-# Armazenar os nomes dos arquivos passados como argumentos
 file1="$1"
 file2="$2"
 
@@ -16,7 +40,7 @@ if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
     exit 1
 fi
 
-# Ler o conteúdo dos arquivos, ignorando as linhas em branco e a primeira linha, e armazenar em arrays
+# Ler o conteúdo dos arquivos e armazenar em arrays
 mapfile -t file1_array < <(grep -v '^$' "$file1" | tail -n +3)
 mapfile -t file2_array < <(grep -v '^$' "$file2" | tail -n +3)
 
@@ -48,4 +72,4 @@ for line in "${!size_mapping[@]}"; do
         # Imprimir a diferença real de tamanho
         echo -e "$size_diff\t$line"
     fi
-done
+done | (sort -k1,1nr) | ($alphabetical && sort -k2 || cat) | ($reverse && tac || cat)
