@@ -62,10 +62,10 @@ done
 function diretoriosPretendidos {
   if [ "$data" != "0" ]; then   #Opçao default que tenho para a data (data="0")
     #Se a opçao -d foi fornecida, usamos o -not -newermt para filtrar consoante a data de modificaçao do arquivo, conforme e pedido
-    find "$1" -type f -not -newermt "$data" -exec dirname {} \; | sort -u
+    find "$1" -type d -not -newermt "$data" 2>/dev/null | sort -u
   else
     #Se a opçao -d nao foi fornecida, nao a podemos considerar para nao perdermos diretórios
-    find "$1" -type f -exec dirname {} \; | sort -u
+    find "$1" -type d 2>/dev/null | sort -u
   fi
 }
 
@@ -77,35 +77,28 @@ function calcularEspacoArquivos {
   diretoriosPretendidos "$1" | while read -r sub_dir; do
     #Quando mudo de diretorio, defino a variavel total_size em zero
     total_size=0
-    has_files=false  #Usar para verificar se o subdiretorio contem arquivos que correspondem a expressao regular
 
-    #Iterar pelos arquivos no subdiretorio que correspondem a expressao regular
-    for file in "$sub_dir"/*; do
-      if [ -f "$file" ] && [[ "$file" =~ $regex ]]; then    #Verificar se e um arquivo valido e se corresponde a expressao regular
-        du_result=$(du -b "$file")  #du -b para obter o tamanho em bytes
-        file_size=$(echo "$du_result" | awk '{print $1}')
-        total_size=$((total_size + file_size))  #Adicionar o tamanho do arquivo ao total_size
-        has_files=true
-      fi
-    done
-
-    #Verificar se o subdiretorio contem arquivos que correspondem a expressao regular
-    if [ "$has_files" = false ]; then
-      total_size=0
-    fi
-
-    #Caso o diretorio nao possa ser acessado
-    if [ "$?" -ne 0 ]; then
-      echo -e "NA\t$sub_dir"fi
+    if [ ! -r "$sub_dir" ] || [ ! -x "$sub_dir" ]; then
+    total_size="NA"
+    else
+      #Iterar pelos arquivos no subdiretorio que correspondem a expressao regular
+      for file in "$sub_dir"/*; do
+        if [ -f "$file" ] && [[ "$file" =~ $regex ]]; then    #Verificar se e um arquivo valido e se corresponde a expressao regular
+          du_result=$(du -b "$file")  #du -b para obter o tamanho em bytes
+          file_size=$(echo "$du_result" | awk '{print $1}')
+          if [ "$?" -ne 0 ]; then
+            total_size="NA"
+            break #Se houver algum erro, sair do loop, o resultado sera NA
+          elif [ "$file_size" -ge "$size_min" ]; then
+            total_size=$((total_size + file_size))  #Adicionar o tamanho do arquivo ao total_size
+          fi
+        fi
+      done
     fi
     
     #Se o tamanho total for maior ou igual a size_min, imprimo o tamanho total
-    if [ "$total_size" -ge "$size_min" ]; then
-        echo -e "$total_size\t$sub_dir"
-        counter=$((counter+1))
-    else
-      echo -e "0\t$sub_dir"
-    fi
+    echo -e "$total_size\t$sub_dir"
+    counter=$((counter+1))
 
     if [ "$limit_lines" -gt 0 ] && [ "$counter" -ge "$limit_lines" ]; then
       break  #Se o contador atingir o limite, sair do loop
