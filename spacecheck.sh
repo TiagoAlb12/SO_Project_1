@@ -13,16 +13,7 @@ size_min="0" #Tamanho minimo estipulado como default
 sort_option="-k1,1nr"  #Inicialmente, a ordenaçao e feita do maior para o menor (em termos de armazenamento)
 limit_lines="0" #Inicializar com zero
 
-#Todos os argumentos que passamos na linha de comandos
 all_args="$@"
-
-# Filtrar os argumentos que correspondem a diretórios
-correct_dir=()   # Array para armazenar os argumentos que correspondem a diretorios
-for arg in "$@"; do   # Iterar sobre todos os argumentos passados  
-  if [ -d "$arg" ]; then  # Verificar se é um diretório válido
-    correct_dir+=("$arg")  # Se for um diretório válido, o argumento é adicionado ao array correct_dir
-  fi
-done
 
 #Analise de todas opçoes que podemos passar na linha de comando
 reverse_sort="false"  #Variavel que criei para controlar o reverse (-r)
@@ -45,7 +36,7 @@ while getopts ":n:d:s:l:ra" option; do
       reverse_sort="true" ;;
     a) 
       sort_option="-k2,2" ;;
-    l) #Validar o argumento da opçao -l, se e um numero inteiro positivo
+    l)
       if [[ "$OPTARG" =~ ^[1-9][0-9]*$ ]]; then
         limit_lines="$OPTARG"
       else
@@ -58,9 +49,10 @@ while getopts ":n:d:s:l:ra" option; do
   esac
 done
 
-#Funçao que lista os diretorios que contem arquivos que correspondem as expressoes regulares que escolhermos
+shift $((OPTIND-1))  #Para ignorar as opçoes que ja foram processadas no getops
+
 function diretoriosPretendidos {
-  if [ "$data" != "0" ]; then   #Opçao default que tenho para a data (data="0")
+  if [ "$data" != "0" ]; then
     #Se a opçao -d foi fornecida, usamos o -not -newermt para filtrar consoante a data de modificaçao do arquivo, conforme e pedido
     find "$1" -type d -not -newermt "$data" 2>/dev/null | sort -u
   else
@@ -69,51 +61,45 @@ function diretoriosPretendidos {
   fi
 }
 
-#Funçao para calcular o espaço ocupado por ficheiro do tipo da expressao regular que passo como argumento (em bytes)
 function calcularEspacoArquivos {
   local counter=0
 
-  #Iterar pelos diretorios obtidos da funçao diretoriosPretendidos
   diretoriosPretendidos "$1" | while read -r sub_dir; do
-    #Quando mudo de diretorio, defino a variavel total_size em zero
     total_size=0
 
     if [ ! -r "$sub_dir" ] || [ ! -x "$sub_dir" ]; then
-    total_size="NA"
+      total_size="NA"
     else
-      #Iterar pelos arquivos no subdiretorio que correspondem a expressao regular
       for file in "$sub_dir"/*; do
         if [ -f "$file" ] && [[ "$file" =~ $regex ]]; then    #Verificar se e um arquivo valido e se corresponde a expressao regular
-          du_result=$(du -b "$file")  #du -b para obter o tamanho em bytes
+          du_result=$(du -b "$file")
           file_size=$(echo "$du_result" | awk '{print $1}')
           if [ "$?" -ne 0 ]; then
             total_size="NA"
             break #Se houver algum erro, sair do loop, o resultado sera NA
           elif [ "$file_size" -ge "$size_min" ]; then
-            total_size=$((total_size + file_size))  #Adicionar o tamanho do arquivo ao total_size
+            total_size=$((total_size + file_size))
           fi
         fi
       done
     fi
-    
-    #Se o tamanho total for maior ou igual a size_min, imprimo o tamanho total
+
     echo -e "$total_size\t$sub_dir"
     counter=$((counter+1))
 
     if [ "$limit_lines" -gt 0 ] && [ "$counter" -ge "$limit_lines" ]; then
-      break  #Se o contador atingir o limite, sair do loop
+      break  #Se o counter atingir o limite, sair do loop
     fi
   done
 }
 
-#Loop pelos diretorios validos contidos no array correct_dir
-for dir in "${correct_dir[@]}"; do
+for dir in "$@"; do
   echo -e "\nEstamos no diretório -> $dir\n"
   echo -e "SIZE\tNAME\t$(date +%Y%m%d)    $all_args" #Cabeçalho
 
   #Para controlar quando usamos o -r -a -n; se usarmos o -r:"$reverse_sort" == "true" e se usarmos o -a:"$sort_option" == "-k2,2"
   if [ "$reverse_sort" == "true" ] && [ "$sort_option" == "-k2,2" ]; then
-    #Se a opção -r foi usada em conjunto com -a -n, reverta a ordem de classificaçao
+    #Se a opcao -r foi usada em conjunto com -a -n, reverta a ordem de classificacao
     calcularEspacoArquivos "$dir" | sort -t$'\t' $sort_option -r
   else  #Caso contrario, ou seja, quando nao usamos o -r -a -n
     calcularEspacoArquivos "$dir" | sort -t$'\t' $sort_option
