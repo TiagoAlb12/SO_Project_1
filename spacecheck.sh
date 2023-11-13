@@ -118,5 +118,4 @@ for dir in "${correct_dir[@]}"; do
   else  #Caso contrario, ou seja, quando nao usamos o -r -a -n
     calcularEspacoArquivos "$dir" | sort -t$'\t' $sort_option
   fi
-  echo "======"
 done
