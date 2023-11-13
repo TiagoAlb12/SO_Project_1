@@ -27,7 +27,7 @@ shift $((OPTIND-1))
 
 # Verificar se são passados dois arquivos como argumentos
 if [ "$#" -ne 2 ]; then
-    echo "Por favor, forneça dois arquivos para comparar."
+    echo "Por favor, forneça dois ficheiros para comparar."
     exit 1
 fi
 
@@ -36,7 +36,7 @@ file_old="$2"
 
 # Verificar se os arquivos existem
 if [ ! -f "$file_new" ] || [ ! -f "$file_old" ]; then
-    echo "Os arquivos especificados não existem."
+    echo "Os ficheiros especificados não existem."
     exit 1
 fi
 
