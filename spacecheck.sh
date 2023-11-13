@@ -1,13 +1,11 @@
 #!/bin/bash
 
-#Mensagem de erro caso usemos uma opçao que nao esta considerada no getops
 function erro {
   echo "ERRO! Opção inválida. Tente novamente!"
   exit 1
 }
 
-#Variaveis com as opçoes default
-regex=".*"  #A expressão regular começa vazia (abrange todos os ficheiros)
+regex=".*"  #A expressão regular começa vazia (abrange todos os tipos de ficheiros)
 data="0"  #-d
 size_min="0" #Tamanho minimo estipulado como default
 sort_option="-k1,1nr"  #Inicialmente, a ordenaçao e feita do maior para o menor (em termos de armazenamento)

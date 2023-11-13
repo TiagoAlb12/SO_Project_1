@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#opções padrão por causa do -a e do -r
+# Definir as opções padrão
 reverse=false
 alphabetical=false
 
-#opções na linha do comando
+# Processar as opções de linha de comando
 while getopts ":ra" option; do
   case "${option}" in
     r)
@@ -18,58 +18,70 @@ while getopts ":ra" option; do
       exit 1
       ;;
     :)
-      echo "A opção -$OPTARG requer um argumento" >&2
+      echo "A opção -$OPTARG requer um argumento." >&2
       exit 1
       ;;
   esac
 done
 shift $((OPTIND-1))
 
-#verificação se são passados dois arquivos para comparar
+# Verificar se são passados dois arquivos como argumentos
 if [ "$#" -ne 2 ]; then
-    echo "Por favor forneça dois arquivos para comparar"
+    echo "Por favor, forneça dois arquivos para comparar."
     exit 1
 fi
 
-file1="$1" #isto é o ficheiro 1
-file2="$2" #isto é o ficheiro 2
+file_new="$1"
+file_old="$2"
 
-#verificação se os arquivos existem
-if [ ! -f "$file1" ] || [ ! -f "$file2" ]; then
-    echo "Os arquivos não existem"
+# Verificar se os arquivos existem
+if [ ! -f "$file_new" ] || [ ! -f "$file_old" ]; then
+    echo "Os arquivos especificados não existem."
     exit 1
 fi
 
-#ler o conteudo dos ficheiros e armazenar em arrays
-mapfile -t file1_array < <(grep -v '^$' "$file1" | tail -n +3)
-mapfile -t file2_array < <(grep -v '^$' "$file2" | tail -n +3)
+# Ler o conteúdo dos arquivos e armazenar em arrays
+mapfile -t file_new_array < <(grep -v '^$' "$file_new" | tail -n +3)
+mapfile -t file_old_array < <(grep -v '^$' "$file_old" | tail -n +3)
 
-declare -A size_mapping
+declare -A size_new_mapping
+declare -A size_old_mapping
+declare -A dirs
 
-#mapeamento do tamanho do arquivo para o seu nome
-for line in "${file1_array[@]}" "${file2_array[@]}"; do
+# Criar um mapeamento do tamanho do arquivo para o seu nome
+for line in "${file_new_array[@]}"; do
     size=$(echo "$line" | awk '{print $1}')
-    filename=$(echo "$line" | cut -f2- -d$'\t')
-    size_mapping["$filename"]+="$size "
+    dirname=$(echo "$line" | cut -f2- -d$'\t')
+    size_new_mapping["$dirname"]="$size"
 done
 
-#comparar os arrays e imprimir 
-for line in "${!size_mapping[@]}"; do
-    sizes=(${size_mapping["$line"]})
-    size1="${sizes[0]}"
-    size2="${sizes[1]}"
 
-    #diferença real de tamanhos
-    size_diff=$((size2 - size1))
+for line in "${file_old_array[@]}"; do
+    size=$(echo "$line" | awk '{print $1}')
+    dirname=$(echo "$line" | cut -f2- -d$'\t')
+    size_old_mapping["$dirname"]="$size"
+done
 
-    #não havendo correspondência no primeiro arquivo ha uma adição do ficheiro
-    if [ -z "$size1" ]; then
-        echo -e "$size_diff\t$line\tNEW"
-    #não havendo correspondência no segundo arquivo ha uma remoção do ficheiro
-    elif [ -z "$size2" ]; then
-        echo -e "$size_diff\t$line\tREMOVED"
+for dir in "${!size_new_mapping[@]}" "${!size_old_mapping[@]}"; do
+    dirs["$dir"]=0
+done
+
+# Comparar os arrays e imprimir conforme o formato desejado
+for dir in "${!dirs[@]}"; do
+    size_new="${size_new_mapping["$dir"]}"
+    size_old="${size_old_mapping["$dir"]}"
+
+    # Se não há correspondência no primeiro arquivo, então é uma adição
+    if [ -z "$size_old" ]; then
+        echo -e "$size_new\t$dir\tNEW"
+    # Se não há correspondência no segundo arquivo, então é uma remoção
+    elif [ -z "$size_new" ]; then
+        echo -e "-$size_old\t$dir\tREMOVED"
     else
-        #imprimir a diferença dos tamanhos
-        echo -e "$size_diff\t$line"
+        # Calcular a diferença real de tamanhos
+        size_diff=$((size_old - size_new))
+
+        # Imprimir a diferença real de tamanho
+        echo -e "$size_diff\t$dir"
     fi
 done | (sort -k1,1nr) | ($alphabetical && sort -k2 || cat) | ($reverse && tac || cat)
